@@ -3,7 +3,7 @@ from os import system
 
 """
 NOTE: If at any place there is a boolean True return anywhere,
-where the boolean is not specified by a var name. means the move is invalid else it is false.
+where the boolean is not specified by a var name. Means the move is invalid else it is false.
 """
 
 
