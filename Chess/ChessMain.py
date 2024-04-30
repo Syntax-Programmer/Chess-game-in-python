@@ -1,7 +1,17 @@
 from ChessEngine import Main
+import keyboard
 
-to_start = input("Start (Y/n): ").strip().lower()
-if to_start != "y":
-    exit()
-Main = Main()
-Main.GameLoop()
+GAME = Main()
+print(
+    """
+    
+    Press y/Y to start.
+    
+    """
+)
+if keyboard.read_key().lower() != "y":
+    exit(code=1)
+else:
+    # Removing the "y" from the input screen
+    keyboard.press("backspace")
+    GAME.GameLoop()
