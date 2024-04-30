@@ -1,616 +1,513 @@
-from time import sleep
+from typing import Literal
 from os import system
-
-"""
-NOTE: If at any place there is a boolean True return anywhere,
-where the boolean is not specified by a var name. Means the move is invalid else it is false.
-"""
+from time import sleep
 
 
-def MoveCorrectFormatChecker(input_move: str) -> bool:
-    """Checks if the user entered move is in the correct format."""
-    if not input_move or len(input_move) != 5:
-        return False
+def AddressFilter(address_to_filter: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Filters the provided address to only have valid usable entries."""
+    return [
+        indices
+        for indices in address_to_filter
+        if 0 <= indices[0] <= 7 and 0 <= indices[1] <= 7
+    ]
+
+
+def PawnAddress(
+    side: Literal["W", "B"], use: Literal["FM", "NM", "C"], sq_index: tuple[int, int]
+) -> list[tuple[int, int]]:
+    """
+    Gives the addresses form which a pawn can attack from, can move to.
+    "W": White, "B": Black
+    "FM": First move, "NM": Normal move, "C": Capture move
+    """
+    sign_convention = -1 if side == "B" else 1
+    if use == "FM":
+        address = [
+            (sq_index[0] + (forward_step * sign_convention), sq_index[1])
+            for forward_step in (1, 2)
+        ]
+    elif use == "NM":
+        address = [(sq_index[0] + (1 * sign_convention), sq_index[1])]
+    elif use == "C":
+        address = [
+            (sq_index[0] + (1 * sign_convention), sq_index[1] + sideways_step)
+            for sideways_step in (1, -1)
+        ]
     else:
-        return (
-            input_move[0] in "pnrbqk"
-            and input_move[1] in "abcdefgh"
-            and input_move[2] in "12345678"
-            and input_move[3] in "abcdefgh"
-            and input_move[4] in "12345678"
-            and input_move[1:3] != input_move[3:5]
+        return []
+    return AddressFilter(address_to_filter=address)
+
+
+def KnightAddress(sq_index: tuple[int, int]) -> list[tuple[int, int]]:
+    """Gives  the addresses form which a knight can attack from, can move to."""
+    address = [
+        (sq_index[0] + 2, sq_index[1] + 1),
+        (sq_index[0] + 2, sq_index[1] - 1),
+        (sq_index[0] - 2, sq_index[1] + 1),
+        (sq_index[0] - 2, sq_index[1] - 1),
+        (sq_index[0] + 1, sq_index[1] + 2),
+        (sq_index[0] - 1, sq_index[1] + 2),
+        (sq_index[0] + 1, sq_index[1] - 2),
+        (sq_index[0] - 1, sq_index[1] - 2),
+    ]
+    return AddressFilter(address_to_filter=address)
+
+
+def KingAddress(sq_index: tuple[int, int]) -> list[tuple[int, int]]:
+    """Gives  the addresses form which a king can attack from, can move to."""
+    address = [
+        (sq_index[0], sq_index[1] + 1),
+        (sq_index[0], sq_index[1] - 1),
+        (sq_index[0] - 1, sq_index[1]),
+        (sq_index[0] + 1, sq_index[1]),
+        (sq_index[0] - 1, sq_index[1] + 1),
+        (sq_index[0] - 1, sq_index[1] - 1),
+        (sq_index[0] + 1, sq_index[1] - 1),
+        (sq_index[0] + 1, sq_index[1] + 1),
+    ]
+    return AddressFilter(address_to_filter=address)
+
+
+def AxialAddress(sq_index: tuple[int, int]) -> list[tuple[int, int]]:
+    """Gives  the addresses form which a rook/queen can attack from, can move to.
+
+    address[0]: +x - axis
+    address[1]: -x - axis
+    address[2]: +y - axis
+    address[3]: -y - axis
+    From the provided sq_index.
+    """
+    address = [
+        [(sq_index[0], sq_index[1] + right_step) for right_step in range(1, 8)],
+        [(sq_index[0], sq_index[1] - left_step) for left_step in range(1, 8)],
+        [(sq_index[0] - up_step, sq_index[1]) for up_step in range(1, 8)],
+        [(sq_index[0] + down_step, sq_index[1]) for down_step in range(1, 8)],
+    ]
+    for place, sub_address in enumerate(address):
+        address[place] = AddressFilter(address_to_filter=sub_address)
+    return address
+
+
+def QuadrantalAddress(sq_index: tuple[int, int]) -> list[tuple[int, int]]:
+    """Gives  the addresses form which a rook/queen can attack from, can move to.
+
+    address[0]: Quad-1
+    address[1]: Quad-2
+    address[2]: Quad-3
+    address[3]: Quad-4
+    From the provided sq_index."""
+    address = [
+        [(sq_index[0] - step, sq_index[1] + step) for step in range(1, 8)],
+        [(sq_index[0] - step, sq_index[1] - step) for step in range(1, 8)],
+        [(sq_index[0] + step, sq_index[1] - step) for step in range(1, 8)],
+        [(sq_index[0] + step, sq_index[1] + step) for step in range(1, 8)],
+    ]
+    for place, sub_address in enumerate(address):
+        address[place] = AddressFilter(address_to_filter=sub_address)
+    return address
+
+
+def ValidSquaresToMoveTo(side: Literal["W", "B"]) -> list[str]:
+    """Gives what all squares a piece can move to."""
+    return (
+        ["♟", "♜", "♞", "♝", "♛", " "]
+        if side == "B"
+        else ["♙", "♖", "♘", "♗", "♕", " "]
+    )
+
+
+def SameSidePieces(side: Literal["W", "B"]) -> list[str]:
+    """GIves pieces of the same side."""
+    return (
+        ["♟", "♚", "♞", "♝", "♛", "♜"]
+        if side == "W"
+        else ["♙", "♘", "♔", "♗", "♕", "♖"]
+    )
+
+
+class Attacked:
+    """Checks if a square/king is attacked by an opponent piece."""
+
+    """Returns True if the provided squares is attacked by the piece in the scope of the function."""
+
+    # Defining the king function separate from the pawns and knights function as king can't attack kings.
+    def __init__(self, board: list[list[str]]) -> None:
+        self.board = board
+        self.white_king_location = (0, 4)
+        self.black_king_location = (7, 4)
+
+    def AttackedByPawnsKnights(
+        self, side: Literal["W", "B"], sq_index: tuple[int, int]
+    ) -> bool:
+        "Check if the provided sq_index is attacked by piece specified by the function."
+        from_knight_attacking = KnightAddress(sq_index=sq_index)
+        from_pawn_attacking = PawnAddress(side=side, use="C", sq_index=sq_index)
+        pieces_to_check_for = (
+            ["♙", "♘"] if side == "W" else ["♟", "♞"]
+        )  # Pieces that can attack.
+        # Returns boolean for attacked or not.
+        return any(
+            self.board[indices[0]][indices[1]] == pieces_to_check_for[0]
+            for indices in from_pawn_attacking
+        ) or any(
+            self.board[indices[0]][indices[1]] == pieces_to_check_for[1]
+            for indices in from_knight_attacking
         )
 
+    def AttackedByKing(
+        self, side: Literal["W", "B"], sq_index: tuple[int, int]
+    ) -> bool:
+        "Check if the provided sq_index is attacked by piece specified by the function."
+        from_king_attacking = KingAddress(sq_index=sq_index)
+        piece_to_check_for = "♔" if side == "W" else "♚"  # Pieces that can attack.
+        # Returns boolean for attacked or not.
+        return any(
+            self.board[indices[0]][indices[1]] == piece_to_check_for
+            for indices in from_king_attacking
+        )
 
-def IsMovingToValidPlace(
-    side: str,
-    move_package: list[str, tuple[int, int], tuple[int, int]],
-    gameboard: list[list[str]],
-) -> bool:
-    """Checks if the user is capturing a valid piece."""
-    is_capturing_valid_piece = True
-    _, _, end = move_package
-    if side == "black":
-        is_capturing_valid_piece = gameboard[end[0]][end[1]] in [
-            "♟",
-            "♞",
-            "♜",
-            "♝",
-            "♛",
-            " ",
-        ]
-    elif side == "white":
-        is_capturing_valid_piece = gameboard[end[0]][end[1]] in [
-            "♙",
-            "♘",
-            "♖",
-            "♗",
-            "♕",
-            " ",
-        ]
-    return is_capturing_valid_piece
+    def AttackedBySlidingPieces(
+        self, side: Literal["W", "B"], sq_index: tuple[int, int]
+    ) -> bool:
+        "Check if the provided sq_index is attacked by piece specified by the function."
 
+        def FirstPieceGrabber(
+            address_to_parse: list[list[tuple[int, int]]]
+        ) -> list[tuple[int, int]]:
+            """Grabs the first pieces form the 4 sub addresses of sliding pieces."""
+            parsed_address = []
+            for sub_address in address_to_parse:
+                for indices in sub_address:
+                    if self.board[indices[0]][indices[1]] not in ["♔", "♚", " "]:
+                        parsed_address.append(indices)
+                        break
+            return parsed_address
 
-def FirstPieceGrabber(
-    address: list[list[tuple[int, int]]], gameboard: list[list[str]]
-) -> list[tuple[int, int]]:
-    """Grabs the first piece form all 4 direction of axial/quadrantal address."""
-    grabbed_pieces = []
-    for sub_address in address:
-        for index in sub_address:
-            if gameboard[index[0]][index[1]] not in [" ", "♚", "♔"]:
-                grabbed_pieces.append(index)
-                break
-    return grabbed_pieces
-
-
-def PiecesHash() -> dict[dict[str]]:
-    """General hash used by Moving class."""
-    return {
-        "p": {"white": "♟", "black": "♙"},
-        "n": {"white": "♞", "black": "♘"},
-        "r": {"white": "♜", "black": "♖"},
-        "b": {"white": "♝", "black": "♗"},
-        "q": {"white": "♛", "black": "♕"},
-        "k": {"white": "♚", "black": "♔"},
-    }
-
-
-def CastlingHash() -> dict[dict[list[list[tuple[int, int]]]]]:
-    """Castling hash used by Pieces class"""
-    # The hash gives [(squares_to_check), (squares_to_modify)]
-    return {
-        "white": {
-            "oo": [
-                [(0, 5), (0, 6)],
-                [(0, 4), (0, 6), (0, 7), (0, 5)],
-            ],
-            "ooo": [
-                [(0, 3), (0, 2), (0, 1)],
-                [(0, 4), (0, 2), (0, 0), (0, 3)],
-            ],
-        },
-        "black": {
-            "oo": [
-                [(7, 5), (7, 6)],
-                [(7, 4), (7, 6), (7, 7), (7, 5)],
-            ],
-            "ooo": [
-                [(7, 3), (7, 2), (7, 1)],
-                [(7, 4), (7, 2), (7, 0), (7, 3)],
-            ],
-        },
-    }
-
-
-class Boards:
-    def __init__(self, gameboard: list[list[str]]) -> None:
-        self.gameboard = gameboard
-
-    def DrawBoard(self) -> None:
-        """Updates the board by erasing the old one and printing a new one."""
-        sleep(0.05)
-        system("cls")
-        print("    a   b   c   d   e   f   g   h")
-        print("  +---+---+---+---+---+---+---+---+")
-        for row_index in range(8):
-            row = f"{row_index+1} |"
-            for piece_index in range(8):
-                row += f" {self.gameboard[row_index][piece_index]} |"
-            print(row)
-            print("  +---+---+---+---+---+---+---+---+")
-
-
-class Address:
-    def __init__(self, GAMEBOARD_ADDRESS: list[tuple[int, int]]) -> None:
-        self.GAMEBOARD_ADDRESS = GAMEBOARD_ADDRESS
-
-    def AddressFilter(
-        self, address_to_filter: list[tuple[int, int]]
-    ) -> list[tuple[int, int]]:
-        """Filters the generally created address to only have addresses that are on the board."""
-        return [
-            elements
-            for elements in address_to_filter
-            if elements in self.GAMEBOARD_ADDRESS
-        ]
-
-    def PawnAddress(
-        self, side: str, use: str, sq_index: tuple[int, int]
-    ) -> list[tuple[int, int]]:
-        """Crates addresses that a pawn can move to or attack from."""
-        address = []
-        if side == "black":
-            if use == "capture":
-                address = [
-                    (sq_index[0] - 1, sq_index[1] - 1),
-                    (sq_index[0] - 1, sq_index[1] + 1),
-                ]
-            elif use == "first_move":
-                address = [
-                    (sq_index[0] - 1, sq_index[1]),
-                    (sq_index[0] - 2, sq_index[1]),
-                ]
-            elif use == "normal_move":
-                address = [(sq_index[0] - 1, sq_index[1])]
-        elif side == "white":
-            if use == "capture":
-                address = [
-                    (sq_index[0] + 1, sq_index[1] - 1),
-                    (sq_index[0] + 1, sq_index[1] + 1),
-                ]
-            elif use == "first_move":
-                address = [
-                    (sq_index[0] + 1, sq_index[1]),
-                    (sq_index[0] + 2, sq_index[1]),
-                ]
-            elif use == "normal_move":
-                address = [(sq_index[0] + 1, sq_index[1])]
-        return self.AddressFilter(address_to_filter=address)
-
-    def KnightAddress(self, sq_index: tuple[int, int]) -> list[tuple[int, int]]:
-        """Crates addresses that a knight can move to or attack from."""
-        address = [
-            (sq_index[0] - 2, sq_index[1] - 1),
-            (sq_index[0] - 2, sq_index[1] + 1),
-            (sq_index[0] + 2, sq_index[1] - 1),
-            (sq_index[0] + 2, sq_index[1] + 1),
-            (sq_index[0] - 1, sq_index[1] - 2),
-            (sq_index[0] + 1, sq_index[1] - 2),
-            (sq_index[0] - 1, sq_index[1] + 2),
-            (sq_index[0] + 1, sq_index[1] + 2),
-        ]
-        return self.AddressFilter(address_to_filter=address)
-
-    def AxialAddress(self, sq_index: tuple[int, int]) -> list[list[tuple[int, int]]]:
-        """Crates addresses that a rook/queen can move to or attack from."""
-        # address[0]: Positive x-axis form provided sq_index.
-        # address[1]: Negative x-axis form provided sq_index.
-        # address[2]: Positive y-axis form provided sq_index.
-        # address[3]: Negative y-axis form provided sq_index.
-        address = [
-            [(sq_index[0], sq_index[1] + move_right) for move_right in range(1, 8)],
-            [(sq_index[0], sq_index[1] - move_left) for move_left in range(1, 8)],
-            [(sq_index[0] - move_up, sq_index[1]) for move_up in range(1, 8)],
-            [(sq_index[0] + move_down, sq_index[1]) for move_down in range(1, 8)],
-        ]
-        for index, sub_address in enumerate(address):
-            address[index] = self.AddressFilter(address_to_filter=sub_address)
-        return address
-
-    def QuadrantalAddress(
-        self, sq_index: tuple[int, int]
-    ) -> list[list[tuple[int, int]]]:
-        """Crates addresses that a bishop/queen can move to or attack from."""
-        # address[0]: Quadrant-1 form provided sq_index.
-        # address[1]: Quadrant-2 form provided sq_index.
-        # address[2]: Quadrant-3 form provided sq_index.
-        # address[3]: Quadrant-4 form provided sq_index.
-        address = [
-            [(sq_index[0] - step, sq_index[1] + step) for step in range(1, 8)],
-            [(sq_index[0] - step, sq_index[1] - step) for step in range(1, 8)],
-            [(sq_index[0] + step, sq_index[1] - step) for step in range(1, 8)],
-            [(sq_index[0] + step, sq_index[1] + step) for step in range(1, 8)],
-        ]
-        for index, sub_address in enumerate(address):
-            address[index] = self.AddressFilter(address_to_filter=sub_address)
-        return address
-
-    def KingAddress(self, sq_index: tuple[int, int]) -> list[tuple[int, int]]:
-        """Crates addresses that a king can move to or attack from."""
-        address = [
-            (sq_index[0], sq_index[1] - 1),
-            (sq_index[0], sq_index[1] + 1),
-            (sq_index[0] - 1, sq_index[1]),
-            (sq_index[0] + 1, sq_index[1]),
-            (sq_index[0] - 1, sq_index[1] + 1),
-            (sq_index[0] - 1, sq_index[1] - 1),
-            (sq_index[0] + 1, sq_index[1] - 1),
-            (sq_index[0] + 1, sq_index[1] + 1),
-        ]
-        return self.AddressFilter(address_to_filter=address)
-
-
-class Attacked(Address):
-    def __init__(
-        self, gameboard: list[list[str]], GAMEBOARD_ADDRESS: list[tuple[int, int]]
-    ) -> None:
-        super().__init__(GAMEBOARD_ADDRESS)
-        self.gameboard = gameboard
-        self.white_king_location: tuple[int, int] = (0, 4)
-        self.black_king_location: tuple[int, int] = (7, 4)
-
-    def PawnOrKnightAttacking(self, side: str, sq_index: tuple[int, int]) -> bool:
-        """Checks if the provided sq_index is attacked by pawn or knight."""
-        is_attacked = False
-        pawn_address = self.PawnAddress(side=side, use="capture", sq_index=sq_index)
-        knight_address = self.KnightAddress(sq_index=sq_index)
-        if side == "white":
-            if any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] == "♙"
-                for gameboard_index in pawn_address
-            ) or any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] == "♘"
-                for gameboard_index in knight_address
-            ):
-                is_attacked = True
-        elif side == "black":
-            if any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] == "♟"
-                for gameboard_index in pawn_address
-            ) or any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] == "♞"
-                for gameboard_index in knight_address
-            ):
-                is_attacked = True
-        return is_attacked
-
-    def KingAttacking(self, side: str, sq_index: tuple[int, int]) -> bool:
-        """Checks if the provided sq_index is attacked by king."""
-        is_attacked = False
-        king_address = self.KingAddress(sq_index=sq_index)
-        if side == "white":
-            if any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] == "♔"
-                for gameboard_index in king_address
-            ):
-                is_attacked = True
-        elif side == "black":
-            if any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] == "♚"
-                for gameboard_index in king_address
-            ):
-                is_attacked = True
-        return is_attacked
-
-    def SlidingPieceAttacking(self, side: str, sq_index: tuple[int, int]) -> bool:
-        """Checks if the provided sq_index is attacked by rook or queen or bishop."""
-        is_attacked = False
-        axial_address = self.AxialAddress(sq_index=sq_index)
-        quadrantal_address = self.QuadrantalAddress(sq_index=sq_index)
+        # Grabbing the first pieces from all 4 directions and diagonals to check for attacking pieces within them.
         axial_address = FirstPieceGrabber(
-            address=axial_address, gameboard=self.gameboard
+            address_to_parse=AxialAddress(sq_index=sq_index)
         )
         quadrantal_address = FirstPieceGrabber(
-            address=quadrantal_address, gameboard=self.gameboard
+            address_to_parse=QuadrantalAddress(sq_index=sq_index)
         )
-        if side == "white":
-            if any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] in ["♕", "♖"]
-                for gameboard_index in axial_address
-            ) or any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] in ["♕", "♗"]
-                for gameboard_index in quadrantal_address
-            ):
-                is_attacked = True
-        elif side == "black":
-            if any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] in ["♛", "♜"]
-                for gameboard_index in axial_address
-            ) or any(
-                self.gameboard[gameboard_index[0]][gameboard_index[1]] in ["♛", "♝"]
-                for gameboard_index in quadrantal_address
-            ):
-                is_attacked = True
-        return is_attacked
+        pieces_to_check_for = (
+            ["♖", "♕", "♗"] if side == "W" else ["♜", "♛", "♝"]
+        )  # Pieces that can attack.
+        # Returns boolean for attacked or not.
+        return any(
+            self.board[indices[0]][indices[1]] in pieces_to_check_for[:2]
+            for indices in axial_address
+        ) or any(
+            self.board[indices[0]][indices[1]] in pieces_to_check_for[1:]
+            for indices in quadrantal_address
+        )
 
-    def IsKingAttacked(self, side: str) -> bool:
-        """Checks if the king of the respective side is in check or not."""
-        if side == "black":
-            king_location = self.black_king_location
-        elif side == "white":
-            king_location = self.white_king_location
-        return self.PawnOrKnightAttacking(
+    def IsKingAttacked(self, side: Literal["W", "B"]) -> bool:
+        """Checks if the king of the provided side is attacked by a piece or not."""
+        king_location = (
+            self.white_king_location if side == "W" else self.black_king_location
+        )
+        return self.AttackedByPawnsKnights(
             side=side, sq_index=king_location
-        ) or self.SlidingPieceAttacking(side=side, sq_index=king_location)
+        ) or self.AttackedBySlidingPieces(side=side, sq_index=king_location)
 
 
-class PossibleMovesCreator(Attacked):
-    def __init__(
-        self, gameboard: list[list[str]], GAMEBOARD_ADDRESS: list[tuple[int, int]]
-    ) -> None:
-        super().__init__(gameboard, GAMEBOARD_ADDRESS)
+class MoveAddress(Attacked):
+    def __init__(self, board: list[list[str]]) -> None:
+        super().__init__(board)
 
-    def UseCaseFinder(
-        self, move_package: list[str, tuple[int, int], tuple[int, int]]
-    ) -> str:
-        """Finds the use case of a pawn move."""
-        _, start, end = move_package
-        use = None
-        if (start[0] == 1 and end[0] == 3) or (start[0] == 6 and end[0] == 4):
-            use = "first_move"
-        elif (start[0] + 1 == end[0] or start[0] - 1 == end[0]) and (
-            start[1] - 1 != end[1] and start[1] + 1 != end[1]
-        ):
-            use = "normal_move"
-        elif start[0] + 1 == end[0] or start[0] - 1 == end[0]:
-            use = "capture"
-        return use
-
-    def PawnsOrKnightsOrKingsMoveAddress(
-        self, side: str, move_package: list[str, tuple[int, int], tuple[int, int]]
+    def PawnsKnightsKingsMoveAddress(
+        self, side: Literal["W", "B"], start: tuple[int, int], end: tuple[int, int]
     ) -> list[tuple[int, int]]:
-        """Makes move_address for pawns or knights or kings."""
-        piece_notation, start, _ = move_package
+        """Creates addresses for a move of pawn/knight/king."""
+
+        def PawnMoveUseFinder(
+            start: tuple[int, int], end: tuple[int, int]
+        ) -> Literal["FM", "NM", "C"]:
+            """Finds the use parameter for the PawnAddress function to be used."""
+            sign_convention = -1 if side == "B" else 1
+            use = ""
+            if (start[0] == 1 and end[0] == 3) or (start[0] == 6 and end[0] == 4):
+                use = "FM"
+            elif (
+                start[0] + (1 * sign_convention) == end[0]
+                and start[1] + 1 != end[1]
+                and start[1] - 1 != end[1]
+            ):
+                use = "NM"
+            elif start[0] + (1 * sign_convention) == end[0] and (
+                start[1] + 1 == end[1] or start[1] - 1 == end[1]
+            ):
+                use = "C"
+            return use
+
         move_address = []
-        if piece_notation == "p":
-            use = self.UseCaseFinder(move_package=move_package)
-            move_address = self.PawnAddress(side=side, use=use, sq_index=start)
-        elif piece_notation == "n":
-            move_address = self.KnightAddress(sq_index=start)
-        elif piece_notation == "k":
-            move_address = self.KingAddress(sq_index=start)
+        if self.board[start[0]][start[1]] in ["♟", "♙"]:
+            move_address = PawnAddress(
+                side=side, use=PawnMoveUseFinder(start=start, end=end), sq_index=start
+            )
+        elif self.board[start[0]][start[1]] in ["♞", "♘"]:
+            move_address = KnightAddress(sq_index=start)
+        elif self.board[start[0]][start[1]] in ["♚", "♔"]:
+            move_address = KingAddress(sq_index=start)
             for indices in move_address[:]:
                 if (
-                    self.PawnOrKnightAttacking(side=side, sq_index=indices)
-                    or self.KingAttacking(side=side, sq_index=indices)
-                    or self.SlidingPieceAttacking(side=side, sq_index=indices)
+                    self.AttackedByKing(side=side, sq_index=indices)
+                    or self.AttackedByPawnsKnights(side=side, sq_index=indices)
+                    or self.AttackedBySlidingPieces(side=side, sq_index=indices)
                 ):
                     move_address.remove(indices)
         return move_address
 
-    def SlidingPieceMoveAddress(
-        self, move_package: list[str, tuple[int, int], tuple[int, int]]
+    def SlidingPiecesMoveAddress(
+        self, start: tuple[int, int], end: tuple[int, int]
     ) -> list[tuple[int, int]]:
-        """Makes move_address for rook or bishop or queen."""
-        piece_notation, start, end = move_package
+        """Creates addresses for a move of sliding pieces."""
         move_address = []
-        if piece_notation == "r":
-            move_address = self.AxialAddress(sq_index=start)
-        elif piece_notation == "b":
-            move_address = self.QuadrantalAddress(sq_index=start)
-        elif piece_notation == "q":
-            move_address = self.AxialAddress(sq_index=start)
-            move_address.extend(self.QuadrantalAddress(sq_index=start))
+        if self.board[start[0]][start[1]] in ["♜", "♖"]:
+            move_address = AxialAddress(sq_index=start)
+        elif self.board[start[0]][start[1]] in ["♝", "♗"]:
+            move_address = QuadrantalAddress(sq_index=start)
+        elif self.board[start[0]][start[1]] in ["♛", "♕"]:
+            move_address = QuadrantalAddress(sq_index=start)
+            move_address.extend(AxialAddress(sq_index=start))
         for sub_address in move_address:
             if end in sub_address:
-                end_index = sub_address.index(end)
-                move_address = sub_address[: end_index + 1]
-                break
+                index_of_end = sub_address.index(end)
+                move_address = sub_address[: index_of_end + 1]
         return move_address
 
 
 class Moving:
-    def __init__(self, gameboard: list[list[str]]) -> None:
-        """Initialization of variables."""
-        self.gameboard = gameboard
-        # Note: self.move_cache stores the data of the performed move [piece_moving, piece_captured/blank_square]
-        self.move_cache: list[str, str] = []
-        self.move_package: list[str, tuple[int, int], tuple[int, int]] = []
-        self.piece_notation: str = ""
-        self.start: str = ""
-        self.end: str = ""
+    def __init__(self, board: list[list[str]]) -> None:
+        self.board = board
+        self.start = ()
+        self.end = ()
+        self.performed_move_cache = ()
 
-    def InputToMove(self, input_move: str) -> bool:
-        """Converts the given input move into processable chunks.
-        Returns True if move is invalid."""
-        if not MoveCorrectFormatChecker(input_move=input_move):
-            return True
-        self.piece_notation = input_move[0]
-        start = input_move[1:3]
-        end = input_move[3:5]
+    def InputToMove(self, input_move: str) -> None:
+        """Converts the user input into indices referenced to the board."""
+        if input_move == "ooo":
+            self.start = self.end = -1
+            return
+        elif input_move == "oo":
+            self.start = self.end = -2
+            return
+        start = input_move[:2]
+        end = input_move[2:]
         self.start = int(start[1]) - 1, ord(start[0]) - ord("a")
         self.end = int(end[1]) - 1, ord(end[0]) - ord("a")
-        self.move_package = self.piece_notation, self.start, self.end
-        return False
 
-    def MovePiece(self, side: str) -> bool:
-        # sourcery skip: class-extract-method
-        """Moves the piece that user wants.
-        Returns True if move is invalid."""
-        PIECES_HASH = PiecesHash()
-        piece_to_move = PIECES_HASH[self.piece_notation][side]
-        if self.gameboard[self.start[0]][self.start[1]] != piece_to_move:
-            return True
-        self.move_cache = [piece_to_move, self.gameboard[self.end[0]][self.end[1]]]
-        (
-            self.gameboard[self.end[0]][self.end[1]],
-            self.gameboard[self.start[0]][self.start[1]],
-        ) = (piece_to_move, " ")
-        return False
+    def MovePerformer(self) -> None:
+        """Moves the pieces on the board."""
+        self.performed_move_cache = (
+            self.board[self.start[0]][self.start[1]],
+            self.board[self.end[0]][self.end[1]],
+        )  # Caches the squares changed during the move.
+        self.board[self.end[0]][self.end[1]] = self.board[self.start[0]][self.start[1]]
+        self.board[self.start[0]][self.start[1]] = " "
 
-    def ReverseMove(self) -> bool:
-        """Reverses the move for specific cases."""
-        """Returns True as this indicates the move is invalid."""
-        piece_moved, piece_moved_to = self.move_cache
+    def CastlePerformer(self, sq_to_modify: list[tuple[int, int]]) -> None:
+        """Performs the castling move."""
+        king_initial, king_final, rook_initial, rook_final = sq_to_modify
+        self.board[king_final[0]][king_final[1]] = self.board[king_initial[0]][
+            king_initial[1]
+        ]
+        self.board[king_initial[0]][king_initial[1]] = " "
+        self.board[rook_final[0]][rook_final[1]] = self.board[rook_initial[0]][
+            rook_initial[1]
+        ]
+        self.board[rook_initial[0]][rook_initial[1]] = " "
+
+    def MoveReverser(self) -> None:
+        """Reverses the already performed move."""
+        # Unpack the cache into the board.
         (
-            self.gameboard[self.end[0]][self.end[1]],
-            self.gameboard[self.start[0]][self.start[1]],
-        ) = (piece_moved_to, piece_moved)
+            self.board[self.start[0]][self.start[1]],
+            self.board[self.end[0]][self.end[1]],
+        ) = self.performed_move_cache
+
+
+class Pieces(MoveAddress, Moving):
+    def __init__(self, board: list[list[str]]) -> None:
+        self.white_short_castle = True
+        self.white_long_castle = True
+        self.black_short_castle = True
+        self.black_long_castle = True
+        # Data consist of [[squares to check], [squares to modify]].
+        self.CASTLING_DATA = {
+            "W": {
+                "-1": [[(0, 3), (0, 2)], [(0, 4), (0, 2), (0, 0), (0, 3)]],
+                "-2": [[(0, 5), (0, 6)], [(0, 4), (0, 6), (0, 7), (0, 5)]],
+            },
+            "B": {
+                "-1": [[(7, 3), (7, 2)], [(7, 4), (7, 2), (7, 0), (7, 3)]],
+                "-2": [[(7, 5), (7, 6)], [(7, 4), (7, 6), (7, 7), (7, 5)]],
+            },
+        }
+        super().__init__(board)
+
+    def CastlingRightsManager(self, side: Literal["W", "B"]) -> None:
+        """Sets rights to false if a king/rook is moved."""
+        if side == "W":
+            if self.start in [-1, -2] or (
+                self.start == (0, 4) and self.board[self.end[0]][self.end[1]] == "♚"
+            ):
+                self.white_long_castle = self.white_short_castle = False
+            elif self.start == (0, 0) and self.board[self.end[0]][self.end[1]] == "♜":
+                self.white_long_castle = False
+            elif self.start == (0, 7) and self.board[self.end[0]][self.end[1]] == "♜":
+                self.white_short_castle = False
+        if side == "B":
+            if self.start in [-1, -2] or (
+                self.start == (7, 4) and self.board[self.end[0]][self.end[1]] == "♔"
+            ):
+                self.black_long_castle = self.black_short_castle = False
+            elif self.start == (7, 0) and self.board[self.end[0]][self.end[1]] == "♖":
+                self.black_long_castle = False
+            elif self.start == (7, 7) and self.board[self.end[0]][self.end[1]] == "♖":
+                self.black_short_castle = False
+
+    def PawnsKnightsKings(self, side: Literal["W", "B"]) -> bool:
+        """Handles everything related to pawns/knights/kings."""
+
+        def KingLocationUpdater(
+            side: Literal["W", "B"], location_to_set_to: tuple[int, int]
+        ) -> None:
+            if self.board[self.start[0]][self.start[1]] not in ["♔", "♚"]:
+                return
+            if side == "W":
+                self.white_king_location = location_to_set_to
+            elif side == "B":
+                self.black_king_location = location_to_set_to
+
+        def Promotion(side: Literal["W", "B"]) -> None:
+            """Check for and performs the promotion of a pawn"""
+            same_side_pieces = SameSidePieces(side=side)
+            piece_dict = {"n": 2, "b": 3, "q": 4, "r": 5}
+            if self.end[0] in [7, 0] and self.board[self.end[0]][self.end[1]] in [
+                "♟",
+                "♙",
+            ]:
+                while True:
+                    what_to_promote_to = input("What to promote to n/b/q/r : ").lower()
+                    if (
+                        not what_to_promote_to
+                        or len(what_to_promote_to) != 1
+                        or what_to_promote_to not in "qrbn"
+                    ):
+                        print("Please enter valid input for promotion.")
+                        continue
+                    else:
+                        self.board[self.end[0]][self.end[1]] = same_side_pieces[
+                            piece_dict.get(what_to_promote_to)
+                        ]
+                        break
+
+        move_address = self.PawnsKnightsKingsMoveAddress(
+            side=side, start=self.start, end=self.end
+        )
+        if (
+            self.board[self.start[0]][self.start[1]]
+            not in SameSidePieces(side=side)[:3]
+        ):
+            print("Select a valid piece to move")
+            return False
+        if self.end not in move_address:
+            print("The entered move is not possible.")
+            return False
+        if (
+            self.start[1] == self.end[1]
+            and self.board[self.start[0]][self.start[1]] in ["♟", "♙"]
+            and any(
+                self.board[indices[0]][indices[1]] != " " for indices in move_address
+            )
+        ):
+            print("Pawn's way is blocked.")
+            return False
+        if self.board[self.end[0]][self.end[1]] not in ValidSquaresToMoveTo(side=side):
+            print("Friendly fire is not permitted under SOVIET LAW.")
+            return False
+        KingLocationUpdater(side=side, location_to_set_to=self.end)
+        self.MovePerformer()
+        if self.IsKingAttacked(side=side):
+            print("Check after you king.")
+            self.MoveReverser()
+            return False
+        self.CastlingRightsManager(side=side)
+        Promotion(side=side)
         return True
 
-    def CastleMoving(self, squares_to_modify: list[tuple[int, int]]) -> None:
-        """Performs the castling move."""
-        king_initial, king_final, rook_initial, rook_final = squares_to_modify
-        (
-            self.gameboard[king_final[0]][king_final[1]],
-            self.gameboard[king_initial[0]][king_initial[1]],
-        ) = (self.gameboard[king_initial[0]][king_initial[1]], " ")
-        (
-            self.gameboard[rook_final[0]][rook_final[1]],
-            self.gameboard[rook_initial[0]][rook_initial[1]],
-        ) = (self.gameboard[rook_initial[0]][rook_initial[1]], " ")
-
-
-class Pieces(PossibleMovesCreator, Moving):
-    def __init__(
-        self, gameboard: list[list[str]], GAMEBOARD_ADDRESS: list[tuple[int, int]]
-    ) -> None:
-        super().__init__(gameboard, GAMEBOARD_ADDRESS)
-        self.white_short_castle: bool = True
-        self.white_long_castle: bool = True
-        self.black_short_castle: bool = True
-        self.black_long_castle: bool = True
-
-    def CastlingRightsCanceller(self, side: str) -> None:
-        """Makes the castling invalid if either king or rook moves."""
-        if side == "black":
-            if self.piece_notation == "k":
-                self.black_long_castle, self.black_short_castle = False, False
-            elif self.piece_notation == "r":
-                if self.start == (7, 0):
-                    self.black_long_castle = False
-                elif self.start == (7, 7):
-                    self.black_short_castle = False
-        elif side == "white":
-            if self.piece_notation == "k":
-                self.white_long_castle, self.white_short_castle = False, False
-            elif self.piece_notation == "r":
-                if self.start == (0, 0):
-                    self.white_long_castle = False
-                elif self.start == (0, 7):
-                    self.white_short_castle = False
-
-    def KingLocationUpdater(self, side: str, location_to_set: tuple[int, int]) -> None:
-        """Updates the king location if the king is moved."""
-        if self.piece_notation == "k":
-            if side == "white":
-                self.white_king_location = location_to_set
-            elif side == "black":
-                self.black_king_location = location_to_set
-
-    def Promotion(self, side: str) -> None:
-        """For promotion of a pawn."""
-        PIECES_HASH = PiecesHash()
-        if self.end[0] in [0, 7] and self.piece_notation == "p":
-            what_to_promote_to = (
-                input("What do you want to promote to: r/ n/ b/ q: ").strip().lower()
-            )
-            while what_to_promote_to not in ["r", "n", "b", "q"]:
-                what_to_promote_to = (
-                    input("Invalid selection: r/ n/ b/ q: ").strip().lower()
-                )
-            self.gameboard[self.end[0]][self.end[1]] = PIECES_HASH[what_to_promote_to][
-                side
-            ]
-
-    def SingleSquareMovingPieces(self, side: str, input_move: str) -> bool:
-        """Controls everything related to pawns or knights or kings."""
-        """Returns True if the move is invalid in some way."""
-        if self.InputToMove(input_move=input_move):
-            return True
-        move_address = self.PawnsOrKnightsOrKingsMoveAddress(
-            side=side, move_package=self.move_package
-        )
-        if self.end not in move_address:
-            return True
+    def SlidingPieces(self, side: Literal["W", "B"]) -> bool:
+        """Handles everything related to sliding pieces."""
+        move_address = self.SlidingPiecesMoveAddress(start=self.start, end=self.end)
         if (
-            self.piece_notation == "p"
-            and self.gameboard[self.end[0]][self.end[1]] == " "
+            self.board[self.start[0]][self.start[1]]
+            not in SameSidePieces(side=side)[3:]
         ):
-            for iterator in move_address:
-                if self.gameboard[iterator[0]][iterator[1]] != " ":
-                    return True
-        if not (
-            IsMovingToValidPlace(
-                side=side, move_package=self.move_package, gameboard=self.gameboard
-            )
-        ):
-            return True
-        if self.MovePiece(side=side):
-            return True
-        self.KingLocationUpdater(side=side, location_to_set=self.end)
-        if self.IsKingAttacked(side=side):
-            self.KingLocationUpdater(side=side, location_to_set=self.start)
-            return self.ReverseMove()
-        self.Promotion(side=side)
-        self.CastlingRightsCanceller(side=side)
-        return False
-
-    def SlidingPieces(self, side: str, input_move: str) -> bool:
-        """Controls everything related to rooks or bishops or queens."""
-        """Returns True if the move is invalid in some way."""
-        if self.InputToMove(input_move=input_move):
-            return True
-        move_address = self.SlidingPieceMoveAddress(move_package=self.move_package)
+            print("Select a valid piece to move")
+            return False
         if self.end not in move_address:
-            return True
-        if self.gameboard[self.end[0]][self.end[1]] == " ":
-            for iterator in move_address:
-                if self.gameboard[iterator[0]][iterator[1]] != " ":
-                    return True
-        else:
-            if not IsMovingToValidPlace(
-                side=side, move_package=self.move_package, gameboard=self.gameboard
-            ):
-                return True
-            for iterator in move_address[:-1]:
-                if self.gameboard[iterator[0]][iterator[1]] != " ":
-                    return True
-        if self.MovePiece(side=side):
-            return True
+            print("The entered move is not possible.")
+            return False
+        if self.board[self.end[0]][self.end[1]] not in ValidSquaresToMoveTo(side=side):
+            print("Friendly fire is not permitted under SOVIET LAW.")
+            return False
+        if any(
+            self.board[indices[0]][indices[1]] != " " for indices in move_address[:-1]
+        ):
+            print("Piece's path is blocked.")
+            return False
+        self.MovePerformer()
         if self.IsKingAttacked(side=side):
-            return self.ReverseMove()
-        self.CastlingRightsCanceller(side=side)
-        return False
+            print("Check after you king.")
+            self.MoveReverser()
+            return False
+        self.CastlingRightsManager(side=side)
+        return True
 
-    def Castling(self, side: str, input_move: str) -> bool:
-        """Controls everything related to castling."""
-        """Returns True if the move is invalid in some way."""
-        if not self.IsKingAttacked(side=side):
-            return True
-        CASTLING_RIGHTS_HASH = {
-            "white": {"oo": "white_short_castle", "ooo": "white_long_castle"},
-            "black": {"oo": "black_short_castle", "ooo": "black_long_castle"},
-        }
-        if not getattr(self, CASTLING_RIGHTS_HASH[side][input_move]):
-            return True
-        CASTLING_HASH = CastlingHash()
-        squares_to_check, squares_to_modify = CASTLING_HASH[side][input_move]
-        for iterator in squares_to_check:
+    def Castling(self, side: Literal["W", "B"]) -> bool:
+        """Handles everything related to castling."""
+
+        def CastlingRightsChecker(side: Literal["W", "B"]) -> bool:
+            """Returns the castling rights referenced for that particular castle."""
+            if side == "W":
+                if self.start == -1:
+                    return self.white_long_castle
+                elif self.start == -2:
+                    return self.white_short_castle
+            if side == "B":
+                if self.start == -1:
+                    return self.black_long_castle
+                elif self.start == -2:
+                    return self.black_short_castle
+
+        if self.IsKingAttacked(side=side):
+            print("Can't castle if your king is attacked.")
+            return False
+        sq_to_check, sq_to_modify = self.CASTLING_DATA.get(side).get(str(self.start))
+        if any(self.board[indices[0]][indices[1]] != " " for indices in sq_to_check):
+            print("Way toward castling is blocked.")
+            return False
+        for indices in sq_to_check:
             if (
-                self.PawnOrKnightAttacking(side=side, sq_index=iterator)
-                or self.SlidingPieceAttacking(side=side, sq_index=iterator)
-                or self.KingAttacking(side=side, sq_index=iterator)
-                or self.gameboard[iterator[0]][iterator[1]] != " "
+                self.AttackedByKing(side=side, sq_index=indices)
+                or self.AttackedByPawnsKnights(side=side, sq_index=indices)
+                or self.AttackedBySlidingPieces(side=side, sq_index=indices)
             ):
-                return True
-        self.CastleMoving(squares_to_modify=squares_to_modify)
-        if side == "black":
-            self.black_long_castle, self.black_short_castle = False, False
-        elif side == "white":
-            self.white_long_castle, self.white_short_castle = False, False
-        return False
-
-    def PiecesCalling(self, side: str, input_move: str) -> bool:
-        if (
-            not input_move
-            or input_move[0] not in "pnk"
-            and input_move[0] not in "rbq"
-            and input_move not in ["ooo", "oo"]
-        ):
-            return True
-        elif input_move[0] in "pnk":
-            return self.SingleSquareMovingPieces(side=side, input_move=input_move)
-        elif input_move[0] in "rbq":
-            return self.SlidingPieces(side=side, input_move=input_move)
-        else:
-            return self.Castling(side=side, input_move=input_move)
+                print("Can't castle if the squares in between are attacked.")
+                return False
+        if not CastlingRightsChecker(side=side):
+            print("The king/ rook have been moved before the castling move.")
+            return False
+        self.CastlePerformer(sq_to_modify=sq_to_modify)
+        self.CastlingRightsManager(side=side)
+        return True
 
 
-class Main(Pieces, Boards):
+class Main(Pieces):
     def __init__(self) -> None:
-        self.gameboard = [
+        self.board = [
             ["♜", "♞", "♝", "♛", "♚", "♝", "♞", "♜"],
             ["♟", "♟", "♟", "♟", "♟", "♟", "♟", "♟"],
             [" ", " ", " ", " ", " ", " ", " ", " "],
@@ -620,21 +517,60 @@ class Main(Pieces, Boards):
             ["♙", "♙", "♙", "♙", "♙", "♙", "♙", "♙"],
             ["♖", "♘", "♗", "♕", "♔", "♗", "♘", "♖"],
         ]
-        self.GAMEBOARD_ADDRESS = [(row, col) for row in range(8) for col in range(8)]
-        super().__init__(self.gameboard, self.GAMEBOARD_ADDRESS)
+        super().__init__(board=self.board)
+
+    def DrawBoard(self) -> None:
+        """Draws and updates the chess board."""
+        sleep(0.05)
+        system("cls")
+        print("   a   b   c   d   e   f   g   h")
+        print("  +---+---+---+---+---+---+---+---+")
+        for row_index in range(8):
+            row = f"{row_index+1} |"
+            for piece_index in range(8):
+                row += f" {self.board[row_index][piece_index]} |"
+            print(row)
+            print("  +---+---+---+---+---+---+---+---+")
+
+    def PieceCalling(self, side: Literal["W", "B"], input_move: str) -> bool:
+        """Calls the appropriate pieces according to the user request."""
+
+        def FormatValidityChecker(input_move: str) -> bool:
+            """Checks if the user inputted move is valid."""
+            if (not input_move or len(input_move) != 4) and input_move not in [
+                "ooo",
+                "oo",
+            ]:
+                return False
+            return (
+                input_move[0] in "abcdefgh"
+                and input_move[1] in "12345678"
+                and input_move[2] in "abcdefgh"
+                and input_move[3] in "12345678"
+                and input_move[:2] != input_move[2:]
+            ) or input_move in ["ooo", "oo"]
+
+        if not FormatValidityChecker(input_move=input_move):
+            print("Consider feeding us the in the right format?")
+            return False
+        self.InputToMove(input_move=input_move)
+        if self.start == self.end in [-1, -2]:
+            return self.Castling(side=side)
+        elif self.board[self.start[0]][self.start[1]] in ["♟", "♙", "♞", "♘", "♚", "♔"]:
+            return self.PawnsKnightsKings(side=side)
+        elif self.board[self.start[0]][self.start[1]] in ["♜", "♖", "♝", "♗", "♛", "♕"]:
+            return self.SlidingPieces(side=side)
 
     def GameLoop(self) -> None:
+        """The main game loop."""
         self.DrawBoard()
-        while True:
-            white_move = input("White's move: ").strip().lower()
-            terminator = self.PiecesCalling(side="white", input_move=white_move)
-            while terminator is True:
-                white_move = input("Invalid move, Try Again: ").strip().lower()
-                terminator = self.PiecesCalling(side="white", input_move=white_move)
+        running = True
+        while running:
+            white_move = input("White's move: ").lower()
+            while not self.PieceCalling(side="W", input_move=white_move):
+                white_move = input("White's move: ").lower()
             self.DrawBoard()
-            black_move = input("Black's move: ").strip().lower()
-            terminator = self.PiecesCalling(side="black", input_move=black_move)
-            while terminator is True:
-                black_move = input("Invalid move, Try Again: ").strip().lower()
-                terminator = self.PiecesCalling(side="black", input_move=black_move)
+            black_move = input("Black's move: ").lower()
+            while not self.PieceCalling(side="B", input_move=black_move):
+                black_move = input("Black's move: ").lower()
             self.DrawBoard()
